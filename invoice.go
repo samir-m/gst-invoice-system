@@ -14,6 +14,22 @@ func atoi(s string) int {
 	return i
 }
 
+func getCompany() (Company, error) {
+	var c Company
+
+	query := `SELECT id, company_name, gstin, phone, email FROM company LIMIT 1`
+
+	err := db.QueryRow(query).Scan(
+		&c.ID,
+		&c.CompanyName,
+		&c.GSTIN,
+		&c.Phone,
+		&c.Email,
+	)
+
+	return c, err
+}
+
 func generateInvoiceNumber(companyName string) string {
 	// Remove spaces and convert to uppercase
 	name := strings.ToUpper(strings.ReplaceAll(companyName, " ", ""))
@@ -83,13 +99,106 @@ func getInvoices() ([]InvoiceList, error) {
 	return invoices, nil
 }
 
+func getInvoiceByID(id int) (InvoiceList, []InvoiceItemView, error) {
+
+	// 1. Get invoice header
+	query := `
+		SELECT 
+			i.id,
+			i.invoice_no,
+			c.name,
+			i.subtotal,
+			i.gst_total,
+			i.grand_total,
+			i.created_at
+		FROM invoices i
+		JOIN customers c ON c.id = i.customer_id
+		WHERE i.id = ?
+	`
+
+	var inv InvoiceList
+
+	err := db.QueryRow(query, id).Scan(
+		&inv.ID,
+		&inv.InvoiceNo,
+		&inv.Customer,
+		&inv.Subtotal,
+		&inv.GSTTotal,
+		&inv.GrandTotal,
+		&inv.Date,
+	)
+
+	if err != nil {
+		fmt.Println("err", err)
+		return InvoiceList{}, nil, err
+	}
+
+	// 2. Get invoice items
+	itemQuery := `
+		SELECT 
+			ii.id,
+			ii.invoice_id,
+			ii.product_id,
+			p.product,
+			ii.qty,
+			ii.price,
+			ii.gst,
+			ii.line_total
+		FROM invoice_items ii
+		JOIN products p ON p.id = ii.product_id
+		WHERE ii.invoice_id = ?
+	`
+
+	rows, err := db.Query(itemQuery, id)
+	if err != nil {
+		fmt.Println("err", err)
+		return inv, nil, err
+	}
+	defer rows.Close()
+
+	var items []InvoiceItem
+
+	for rows.Next() {
+		var item InvoiceItem
+
+		err := rows.Scan(
+			&item.ID,
+			&item.InvoiceID,
+			&item.ProductID,
+			&item.ProductName,
+			&item.Qty,
+			&item.Price,
+			&item.GST,
+			&item.LineTotal,
+		)
+
+		if err != nil {
+			return inv, nil, err
+		}
+
+		items = append(items, item)
+	}
+
+	// 3. Convert to view model AFTER loop
+	var itemsView []InvoiceItemView
+
+	for i, it := range items {
+		itemsView = append(itemsView, InvoiceItemView{
+			No:          i + 1,
+			InvoiceItem: it,
+		})
+	}
+
+	return inv, itemsView, nil
+}
+
 func (app *App) InvoiceHandler(w http.ResponseWriter, r *http.Request) {
 
 	invoices, _ := getInvoices()
 
 	data := map[string]interface{}{
 		"Title":    "Invoice",
-		"Page":     "view_invoice",
+		"Page":     "invoice",
 		"Invoices": invoices,
 	}
 
@@ -100,6 +209,12 @@ func (app *App) CreateInvoiceHandler(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
+
+	company, err := getCompany()
+	if err != nil {
+		http.Error(w, "company not found", 500)
+		return
+	}
 
 	// SHOW PAGE
 	if r.Method == http.MethodGet {
@@ -143,7 +258,7 @@ func (app *App) CreateInvoiceHandler(
 		// totals
 		var subtotal, gstTotal float64
 
-		var invoiceNo string = generateInvoiceNumber("Acme Corporation")
+		var invoiceNo string = generateInvoiceNumber(company.CompanyName)
 
 		// create invoice first
 		res, err := tx.Exec(
@@ -221,4 +336,42 @@ func (app *App) CreateInvoiceHandler(
 
 		http.Redirect(w, r, "/invoice", http.StatusSeeOther)
 	}
+}
+
+func (app *App) GetInvoiceViewHandler(w http.ResponseWriter, r *http.Request) {
+
+	// allow only GET
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// get query param: /invoice/view?id=2
+	idStr := r.URL.Query().Get("id")
+	if idStr == "" {
+		http.Error(w, "missing id", http.StatusBadRequest)
+		return
+	}
+
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+
+	// call DB function
+	inv, items, err := getInvoiceByID(id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	data := map[string]interface{}{
+		"Title":   "Invoice",
+		"Page":    "view_invoice",
+		"Invoice": inv,
+		"Items":   items,
+	}
+
+	app.Tmpl.ExecuteTemplate(w, "invoice", data)
 }

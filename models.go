@@ -44,3 +44,22 @@ type InvoiceList struct {
 	GrandTotal float64
 	Date       string
 }
+
+type Company struct {
+	ID          int
+	CompanyName string
+	GSTIN       string
+	Phone       string
+	Email       string
+	Code        string
+}
+
+type InvoiceView struct {
+	InvoiceList
+	Items []InvoiceItemView
+}
+
+type InvoiceItemView struct {
+	No int
+	InvoiceItem
+}

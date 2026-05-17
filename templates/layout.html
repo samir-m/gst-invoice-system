@@ -26,6 +26,8 @@
         {{template "create_invoice.content" .}}
         {{else if eq .Page "view_invoice"}}
         {{template "view_invoice.content" .}}
+        {{else if eq .Page "invoice"}}
+        {{template "invoice.content" .}}
         {{end}}
 
 

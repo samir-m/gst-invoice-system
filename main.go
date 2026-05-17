@@ -28,8 +28,6 @@ func main() {
 
 	initDB()
 
-	fmt.Println("Main method")
-
 	dir, _ := os.Getwd()
 	fmt.Println("PWD:", dir)
 

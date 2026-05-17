@@ -66,19 +66,6 @@ func createTables() {
     address TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );`,
-		`INSERT INTO company (
-    company_name,
-    gstin,
-    phone,
-    email,
-    address
-) VALUES (
-    'Acme Corporation',
-    '27ABCDE1234F1Z5',
-    '+91 9876543210',
-    'info@acme.com',
-    'Mumbai, Maharashtra'
-);`,
 	}
 
 	for _, q := range queries {

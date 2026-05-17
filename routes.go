@@ -15,5 +15,7 @@ func NewRouter(app *App) http.Handler {
 	mux.HandleFunc("/invoice", app.InvoiceHandler)
 	mux.HandleFunc("/invoice/create", app.CreateInvoiceHandler)
 
+	mux.HandleFunc("/invoice/view", app.GetInvoiceViewHandler)
+
 	return mux
 }
