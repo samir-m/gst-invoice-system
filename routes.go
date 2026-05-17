@@ -17,5 +17,9 @@ func NewRouter(app *App) http.Handler {
 
 	mux.HandleFunc("/invoice/view", app.GetInvoiceViewHandler)
 
+	mux.HandleFunc("/invoice/pdf", app.ShowInvoicePdf)
+
+	mux.HandleFunc("/invoice/print", app.InvoicePDFHandler)
+
 	return mux
 }

@@ -1,12 +1,16 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/chromedp/cdproto/page"
+	"github.com/chromedp/chromedp"
 )
 
 func atoi(s string) int {
@@ -374,4 +378,107 @@ func (app *App) GetInvoiceViewHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	app.Tmpl.ExecuteTemplate(w, "invoice", data)
+}
+
+func (app *App) ShowInvoicePdf(w http.ResponseWriter, r *http.Request) {
+	// allow only GET
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// get query param: /invoice/view?id=2
+	idStr := r.URL.Query().Get("id")
+	if idStr == "" {
+		http.Error(w, "missing id", http.StatusBadRequest)
+		return
+	}
+
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+
+	// call DB function
+	inv, items, err := getInvoiceByID(id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	data := map[string]interface{}{
+		"Title":   "Invoice",
+		"Page":    "pdf_invoice",
+		"Invoice": inv,
+		"Items":   items,
+	}
+
+	app.Tmpl.ExecuteTemplate(w, "pdf_invoice", data)
+}
+
+func (app *App) InvoicePDFHandler(w http.ResponseWriter, r *http.Request) {
+
+	// allow only GET
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// get invoice id
+	idStr := r.URL.Query().Get("id")
+	if idStr == "" {
+		http.Error(w, "missing id", http.StatusBadRequest)
+		return
+	}
+
+	// invoice HTML page URL
+	url := "http://localhost:8080/invoice/pdf?id=" + idStr
+
+	// create chrome context
+	ctx, cancel := chromedp.NewContext(context.Background())
+	defer cancel()
+
+	var pdfBuf []byte
+
+	// generate PDF
+	err := chromedp.Run(ctx,
+		chromedp.Navigate(url),
+
+		// wait for page render
+		chromedp.Sleep(2*time.Second),
+
+		chromedp.ActionFunc(func(ctx context.Context) error {
+
+			var err error
+
+			pdfBuf, _, err = page.PrintToPDF().
+				WithPrintBackground(true).
+				WithPaperWidth(8.27).   // A4 width
+				WithPaperHeight(11.69). // A4 height
+				WithMarginTop(0.3).
+				WithMarginBottom(0.3).
+				WithMarginLeft(0.3).
+				WithMarginRight(0.3).
+				Do(ctx)
+
+			return err
+		}),
+	)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// set response headers
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set(
+		"Content-Disposition",
+		`inline; filename="invoice-`+idStr+`.pdf"`,
+	)
+
+	// show PDF in browser
+	w.Write(pdfBuf)
+
 }
