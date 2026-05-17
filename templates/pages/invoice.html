@@ -1,0 +1,204 @@
+{{define "invoice"}}
+{{template "layout" .}}
+{{end}}
+
+{{define "create_invoice.content"}}
+
+<h1 class="text-2xl font-bold mb-4">Create Invoice</h1>
+
+<form method="POST" id="invoice_form" action="/invoice/create">
+
+    <!-- Customer Select -->
+    <select name="customer_id" class="border p-2 w-full mb-4">
+        <option value="">Select Customer</option>
+        {{range .Customers}}
+        <option value="{{.ID}}">{{.Name}}</option>
+        {{end}}
+    </select>
+
+    <table class="w-full border">
+        <thead>
+            <tr class="bg-gray-200">
+                <th>Product</th>
+                <th>Price</th>
+                <th>GST %</th>
+                <th>Qty</th>
+                <th>Total</th>
+            </tr>
+        </thead>
+
+        <tbody id="items">
+            <tr>
+                <td>
+                    <select name="product_id[]" class="product border p-1">
+                        {{range .Products}}
+                        <option value="{{.ID}}" data-price="{{.Price}}" data-gst="{{.GST}}">
+                            {{.Product}}
+                        </option>
+                        {{end}}
+                    </select>
+                </td>
+
+                <td class="price">0</td>
+                <td class="gst">0</td>
+
+                <td>
+                    <input type="number" name="qty[]" class="qty border p-1" value="1">
+                </td>
+
+                <td class="total">0</td>
+
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="mt-4">
+        <button type="button" onclick="addRow()" class="bg-blue-500 text-white px-4 py-2">
+            + Add Product
+        </button>
+
+        <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded">
+            Save Invoice
+        </button>
+    </div>
+
+</form>
+
+<hr class="my-4">
+
+<h3>Subtotal: <span id="subtotal">0</span></h3>
+<h3>GST: <span id="gst">0</span></h3>
+<h3>Total: <span id="grand">0</span></h3>
+
+<script>
+    function calculate() {
+        let rows = document.querySelectorAll("#items tr");
+
+        let subtotal = 0;
+        let totalGST = 0;
+
+        rows.forEach(row => {
+            let select = row.querySelector(".product");
+            let price = parseFloat(select.selectedOptions[0].dataset.price);
+            let gst = parseFloat(select.selectedOptions[0].dataset.gst);
+            let qty = parseFloat(row.querySelector(".qty").value);
+
+            let lineTotal = price * qty;
+            let gstAmount = (lineTotal * gst) / 100;
+
+            row.querySelector(".price").innerText = price;
+            row.querySelector(".gst").innerText = gst;
+            row.querySelector(".total").innerText = lineTotal + gstAmount;
+
+            subtotal += lineTotal;
+            totalGST += gstAmount;
+        });
+
+        document.getElementById("subtotal").innerText = subtotal;
+        document.getElementById("gst").innerText = totalGST;
+        document.getElementById("grand").innerText = subtotal + totalGST;
+    }
+
+    function addRow() {
+        let table = document.getElementById("items");
+        let newRow = table.rows[0].cloneNode(true);
+        table.appendChild(newRow);
+        calculate();
+    }
+
+    document.addEventListener("change", calculate);
+    document.addEventListener("input", calculate);
+
+    calculate();
+</script>
+
+{{end}}
+
+
+{{define "view_invoice.content"}}
+<div class="max-w-7xl mx-auto p-6">
+
+    <!-- Header -->
+    <div class="flex justify-between items-center mb-6">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-800">Invoices</h1>
+            <p class="text-gray-500">Manage all generated invoices</p>
+        </div>
+
+        <a href="/invoice/create" class="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 transition">
+            + New Invoice
+        </a>
+    </div>
+
+    <!-- Grid -->
+    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+        {{range .Invoices}}
+        <div class="bg-white shadow-md rounded-xl p-5 border hover:shadow-lg transition">
+
+            <!-- Top -->
+            <div class="flex justify-between items-start">
+                <div>
+                    <h2 class="text-lg font-bold text-blue-600">
+                        {{.InvoiceNo}}
+                    </h2>
+                    <p class="text-sm text-gray-500">
+                        {{.Date}}
+                    </p>
+                </div>
+
+                <span class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
+                    Paid
+                </span>
+            </div>
+
+            <!-- Customer -->
+            <div class="mt-4">
+                <p class="text-gray-500 text-sm">Customer</p>
+                <p class="font-semibold text-gray-800">
+                    {{.Customer}}
+                </p>
+            </div>
+
+            <!-- Amounts -->
+            <div class="mt-4 space-y-1 text-sm">
+
+                <div class="flex justify-between">
+                    <span class="text-gray-500">Subtotal</span>
+                    <span>₹{{printf "%.2f" .Subtotal}}</span>
+                </div>
+
+                <div class="flex justify-between">
+                    <span class="text-gray-500">GST</span>
+                    <span>₹{{printf "%.2f" .GSTTotal}}</span>
+                </div>
+
+            </div>
+
+            <!-- Total -->
+            <div class="mt-4 border-t pt-3 flex justify-between items-center">
+                <span class="font-semibold text-gray-700">Total</span>
+                <span class="text-lg font-bold text-green-600">
+                    ₹{{printf "%.2f" .GrandTotal}}
+                </span>
+            </div>
+
+            <!-- Actions -->
+            <div class="mt-4 flex gap-2">
+                <a href="/invoice/view?id={{.ID}}"
+                    class="flex-1 text-center bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 rounded-lg text-sm">
+                    View
+                </a>
+
+                <a href="/invoice/print?id={{.ID}}"
+                    class="flex-1 text-center bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg text-sm">
+                    Print
+                </a>
+            </div>
+
+        </div>
+        {{end}}
+
+    </div>
+</div>
+{{end}}

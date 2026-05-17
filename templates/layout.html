@@ -1,0 +1,39 @@
+{{define "layout"}}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{.Title}}</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-100 flex">
+
+    {{template "sidebar" .}}
+
+    <div class="flex-1 p-6">
+
+        {{if eq .Page "home"}}
+        {{template "home.content" .}}
+        {{else if eq .Page "customer"}}
+        {{template "customer.content" .}}
+        {{else if eq .Page "product"}}
+        {{template "product.content" .}}
+        {{else if eq .Page "create_invoice"}}
+        {{template "create_invoice.content" .}}
+        {{else if eq .Page "view_invoice"}}
+        {{template "view_invoice.content" .}}
+        {{end}}
+
+
+        {{template "footer" .}}
+
+    </div>
+
+</body>
+
+</html>
+{{end}}
