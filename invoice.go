@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/chromedp"
+	"github.com/joho/godotenv"
 )
 
 func atoi(s string) int {
@@ -243,7 +245,10 @@ func (app *App) CreateInvoiceHandler(
 
 		r.ParseForm()
 
-		customerID := r.FormValue("customer_id")
+		customerIDStr := r.FormValue("customer_id")
+
+		customerID, err := strconv.Atoi(customerIDStr)
+
 		productIDs := r.Form["product_id[]"]
 		qtys := r.Form["qty[]"]
 
@@ -266,8 +271,14 @@ func (app *App) CreateInvoiceHandler(
 
 		// create invoice first
 		res, err := tx.Exec(
-			`INSERT INTO invoices(invoice_no, customer_id, subtotal, gst_total, grand_total, created_at)
-		 VALUES(?, ?,?,?,?,datetime('now'))`,
+			`INSERT INTO invoices(
+		invoice_no,
+		customer_id,
+		subtotal,
+		gst_total,
+		grand_total,
+		created_at
+	) VALUES(?, ?, ?, ?, ?, NOW())`,
 			invoiceNo, customerID, 0, 0, 0,
 		)
 
@@ -419,6 +430,10 @@ func (app *App) ShowInvoicePdf(w http.ResponseWriter, r *http.Request) {
 
 func (app *App) InvoicePDFHandler(w http.ResponseWriter, r *http.Request) {
 
+	godotenv.Load()
+
+	baseURL := os.Getenv("BASE_URL")
+
 	// allow only GET
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -433,7 +448,7 @@ func (app *App) InvoicePDFHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// invoice HTML page URL
-	url := "http://localhost:8080/invoice/pdf?id=" + idStr
+	url := baseURL + "/invoice/pdf?id=" + idStr
 
 	// create chrome context
 	ctx, cancel := chromedp.NewContext(context.Background())

@@ -63,3 +63,10 @@ type InvoiceItemView struct {
 	No int
 	InvoiceItem
 }
+
+type DBConfig struct {
+	host     string
+	user     string
+	password string
+	database string
+}
